@@ -3,6 +3,7 @@ go:
   - 1.6
   - tip
 install:
+  - go get -t -v ./...
   - go get github.com/philipjkim/goreadability
 notifications:
   email: false
