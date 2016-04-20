@@ -61,3 +61,7 @@ This code is under the Apache License 2.0. See <http://www.apache.org/licenses/L
 
 
 [![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/philipjkim/goreadability/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/philipjkim/goreadability/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+
