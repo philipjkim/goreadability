@@ -9,7 +9,7 @@ import (
 )
 
 var urlWithAbsoluteImgPaths = "http://m.twins.mlb.com/news/article/172850240/twins-impressed-by-byung-ho-parks-home-run"
-var urlWithRelativeImgPaths = "http://weplanner.co.kr/?webid=160815854"
+var urlWithRelativeImgPaths = "http://www.boogiejack.com/server_paths.html"
 
 func TestExtract(t *testing.T) {
 	opt := NewOption()
