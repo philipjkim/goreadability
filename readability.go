@@ -18,7 +18,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-// Option .
+// Option contains variety of options for extracting page content and images.
 type Option struct {
 	RetryLength              int
 	MinTextLength            int
@@ -29,6 +29,8 @@ type Option struct {
 	MinImageWidth            int
 	MinImageHeight           int
 	MaxImageCount            int
+	CheckImageLoopCount      int
+	ImageFetchTimeout        int
 	IgnoreImageFormat        []string
 	Blacklist                string
 	Whitelist                string
@@ -47,6 +49,8 @@ func NewOption() *Option {
 		MinImageWidth:            200,
 		MinImageHeight:           100,
 		MaxImageCount:            3,
+		CheckImageLoopCount:      10,
+		ImageFetchTimeout:        1500,
 		IgnoreImageFormat:        []string{"data:image/", ".svg", ".webp"},
 		Blacklist:                "",
 		Whitelist:                "",
@@ -65,6 +69,8 @@ func copyOption(o *Option) *Option {
 		MinImageWidth:            o.MinImageWidth,
 		MinImageHeight:           o.MinImageHeight,
 		MaxImageCount:            o.MaxImageCount,
+		CheckImageLoopCount:      o.CheckImageLoopCount,
+		ImageFetchTimeout:        o.ImageFetchTimeout,
 		IgnoreImageFormat:        o.IgnoreImageFormat,
 		Blacklist:                o.Blacklist,
 		Whitelist:                o.Whitelist,
@@ -72,8 +78,7 @@ func copyOption(o *Option) *Option {
 	}
 }
 
-// Pattern contains regular expressions for readability operations.
-type Pattern struct {
+type pattern struct {
 	UnlikelyCandidates   *regexp.Regexp
 	OKMaybeItsACandidate *regexp.Regexp
 	Positive             *regexp.Regexp
@@ -88,8 +93,7 @@ type Pattern struct {
 	Trimmable            *regexp.Regexp
 }
 
-// NewPattern returns the pattern.
-func NewPattern() *Pattern {
+func newPattern() *pattern {
 	uc := regexp.MustCompile("(?i)combx|comment|community|disqus|extra|foot|header|menu|remark|rss|shoutbox|sidebar|sponsor|ad-break|agegate|pagination|pager|popup")
 	mc := regexp.MustCompile("(?i)and|article|body|column|main|shadow")
 	pos := regexp.MustCompile("(?i)article|body|content|entry|hentry|main|page|pagination|post|text|blog|story")
@@ -102,7 +106,7 @@ func NewPattern() *Pattern {
 	vid := regexp.MustCompile("(?i)http:\\/\\/(www\\.)?(youtube|vimeo)\\.com")
 	tag := regexp.MustCompile("<.*?>")
 	tr := regexp.MustCompile("[\r\n\t ]+")
-	return &Pattern{
+	return &pattern{
 		UnlikelyCandidates:   uc,
 		OKMaybeItsACandidate: mc,
 		Positive:             pos,
@@ -118,7 +122,7 @@ func NewPattern() *Pattern {
 	}
 }
 
-var patterns = NewPattern()
+var patterns = newPattern()
 
 // Content contains primary readable content of a webpage.
 type Content struct {
@@ -126,6 +130,10 @@ type Content struct {
 	Description string
 	Author      string
 	Images      []string
+}
+
+func init() {
+	fastimage.SetTimeout(1000)
 }
 
 // ExtractFromResponse requests to reqURL then returns contents extracted from the response.
@@ -138,17 +146,20 @@ func ExtractFromResponse(reqURL string) (*Content, error) {
 }
 
 // Extract returns Content when extraction succeeds, otherwise error.
+//
+// If you already have *goquery.Document after requesting HTTP, use this function,
+// otherwise use ExtractFromResponse(reqURL).
 func Extract(doc *goquery.Document, reqURL string) (*Content, error) {
 	title := strings.TrimSpace(doc.Find("title").First().Text())
 	opt := NewOption()
 	return &Content{
 		Title:       title,
-		Description: content(doc, opt),
+		Description: description(doc, opt),
 		Images:      images(doc, reqURL, opt),
 	}, nil
 }
 
-func content(doc *goquery.Document, opt *Option) string {
+func description(doc *goquery.Document, opt *Option) string {
 	candidates := prepareCandidates(doc, opt)
 	article, err := getArticle(candidates)
 	if err != nil {
@@ -171,13 +182,13 @@ func content(doc *goquery.Document, opt *Option) string {
 		} else {
 			return cleanedArticle
 		}
-		return content(doc, newOpts)
+		return description(doc, newOpts)
 	}
 
 	return cleanedArticle
 }
 
-func prepareCandidates(doc *goquery.Document, opt *Option) *Candidates {
+func prepareCandidates(doc *goquery.Document, opt *Option) *candidates {
 	doc.Find("style, script").Each(func(i int, s *goquery.Selection) {
 		s.Remove()
 	})
@@ -188,7 +199,7 @@ func prepareCandidates(doc *goquery.Document, opt *Option) *Candidates {
 	return getCandidates(doc, opt)
 }
 
-func getArticle(candidates *Candidates) (*goquery.Document, error) {
+func getArticle(candidates *candidates) (*goquery.Document, error) {
 	if candidates == nil || len(candidates.List) == 0 {
 		return nil, errors.New("Empty candidates")
 	}
@@ -197,7 +208,7 @@ func getArticle(candidates *Candidates) (*goquery.Document, error) {
 	output, _ := goquery.NewDocumentFromReader(strings.NewReader("<div></div>"))
 	re := regexp.MustCompile("\\.( |$)")
 	bestCandidate.Node.Parent().Children().Each(func(i int, s *goquery.Selection) {
-		sel := NewMySelection(s)
+		sel := newMySelection(s)
 		append := false
 		if sel.HTML() == bestCandidate.Node.HTML() {
 			append = true
@@ -229,7 +240,7 @@ func getArticle(candidates *Candidates) (*goquery.Document, error) {
 	return output, nil
 }
 
-func sanitize(doc *goquery.Document, candidates *Candidates, opt *Option) string {
+func sanitize(doc *goquery.Document, candidates *candidates, opt *Option) string {
 	doc.Find("h1, h2, h3, h4, h5, h6").Each(func(i int, s *goquery.Selection) {
 		if classWeight(s, opt) < 0 || linkDensity(s) > 0.33 {
 			s.Remove()
@@ -281,13 +292,13 @@ func sanitize(doc *goquery.Document, candidates *Candidates, opt *Option) string
 	return re.ReplaceAllString(html, "\n")
 }
 
-func cleanConditionally(doc *goquery.Document, candidates *Candidates, selector string, opt *Option) {
+func cleanConditionally(doc *goquery.Document, candidates *candidates, selector string, opt *Option) {
 	if !opt.CleanConditionally {
 		return
 	}
 
 	doc.Find(selector).Each(func(i int, s *goquery.Selection) {
-		sel := NewMySelection(s)
+		sel := newMySelection(s)
 		weight := classWeight(s, opt)
 		score := candidates.Map[sel.HTML()].Score
 		tagName := goquery.NodeName(s)
@@ -359,8 +370,8 @@ func transformMisusedDivsIntoP(doc *goquery.Document) {
 	})
 }
 
-func getCandidates(doc *goquery.Document, opt *Option) *Candidates {
-	cMap := map[string]Candidate{}
+func getCandidates(doc *goquery.Document, opt *Option) *candidates {
+	cMap := map[string]candidate{}
 	doc.Find("p, td").Each(func(i int, s *goquery.Selection) {
 		parent := s.Parent()
 		var grandParent *goquery.Selection
@@ -379,15 +390,15 @@ func getCandidates(doc *goquery.Document, opt *Option) *Candidates {
 		score += float64(len(strings.Split(innerText, ",")))
 		score += math.Min((float64(len(innerText)) / 100.0), 3.0)
 
-		psel := NewMySelection(parent)
+		psel := newMySelection(parent)
 		if _, ok := cMap[psel.HTML()]; !ok {
-			cMap[psel.HTML()] = Candidate{Node: psel, Score: scoreNode(parent, opt) + score}
+			cMap[psel.HTML()] = candidate{Node: psel, Score: scoreNode(parent, opt) + score}
 		}
 
 		if grandParent != nil {
-			gsel := NewMySelection(grandParent)
+			gsel := newMySelection(grandParent)
 			if _, ok := cMap[gsel.HTML()]; !ok {
-				cMap[gsel.HTML()] = Candidate{
+				cMap[gsel.HTML()] = candidate{
 					Node:  gsel,
 					Score: scoreNode(grandParent, opt) + (score / 2.0),
 				}
@@ -399,9 +410,9 @@ func getCandidates(doc *goquery.Document, opt *Option) *Candidates {
 	// Good content should have a relatively small link density (5% or less)
 	// and be mostly unaffected by this operation.
 	for k, v := range cMap {
-		cMap[k] = Candidate{Node: v.Node, Score: v.Score * (1 - linkDensity(v.Node.Selection))}
+		cMap[k] = candidate{Node: v.Node, Score: v.Score * (1 - linkDensity(v.Node.Selection))}
 	}
-	return &Candidates{Map: cMap, List: sortCandidates(cMap)}
+	return &candidates{Map: cMap, List: sortCandidates(cMap)}
 }
 
 var elemScores = map[string]float64{
@@ -453,20 +464,20 @@ func linkDensity(s *goquery.Selection) float64 {
 	return linkLen / textLen
 }
 
-type MySelection struct {
+type mySelection struct {
 	*goquery.Selection
 }
 
-func NewMySelection(s *goquery.Selection) *MySelection {
-	return &MySelection{s}
+func newMySelection(s *goquery.Selection) *mySelection {
+	return &mySelection{s}
 }
 
-func (s *MySelection) HTML() string {
+func (s *mySelection) HTML() string {
 	html, _ := s.Html()
 	return html
 }
 
-func (s *MySelection) String() string {
+func (s *mySelection) String() string {
 	if s == nil {
 		return "(nil)"
 	}
@@ -476,38 +487,37 @@ func (s *MySelection) String() string {
 		s.AttrOr("class", "(undefined)"))
 }
 
-type Candidate struct {
-	Node  *MySelection
+type candidate struct {
+	Node  *mySelection
 	Score float64
 }
 
-func (c Candidate) String() string {
+func (c candidate) String() string {
 	if c.Node == nil {
 		return ""
 	}
 	return fmt.Sprintf("%v(%v)", c.Node, c.Score)
 }
 
-type CandidateList []Candidate
+type candidateList []candidate
 
-func (c CandidateList) Len() int {
+func (c candidateList) Len() int {
 	return len(c)
 }
-func (c CandidateList) Less(i, j int) bool {
+func (c candidateList) Less(i, j int) bool {
 	return c[i].Score < c[j].Score
 }
-func (c CandidateList) Swap(i, j int) {
+func (c candidateList) Swap(i, j int) {
 	c[i], c[j] = c[j], c[i]
 }
 
-// Candidates contains map(k: node.Html(), v: Candidate) and list of Candidates.
-type Candidates struct {
-	Map  map[string]Candidate
-	List CandidateList
+type candidates struct {
+	Map  map[string]candidate
+	List candidateList
 }
 
-func sortCandidates(candidates map[string]Candidate) CandidateList {
-	cl := make(CandidateList, len(candidates))
+func sortCandidates(candidates map[string]candidate) candidateList {
+	cl := make(candidateList, len(candidates))
 	i := 0
 	for _, v := range candidates {
 		cl[i] = v
@@ -517,19 +527,18 @@ func sortCandidates(candidates map[string]Candidate) CandidateList {
 	return cl
 }
 
-type ImageCheck struct {
+type imageCheck struct {
 	URL        string
 	Acceptable bool
 }
 
 func images(doc *goquery.Document, reqURL string, opt *Option) []string {
-	ch := make(chan *ImageCheck)
+	ch := make(chan *imageCheck)
 	imgs := []string{}
 	quitLoop := false
 	loopCnt := 0
 	doc.Find("img").EachWithBreak(func(i int, s *goquery.Selection) bool {
-		loopCnt += 1
-		if quitLoop || loopCnt >= 20 {
+		if quitLoop || loopCnt >= opt.CheckImageLoopCount {
 			return false
 		}
 		src, err := absPath(s.AttrOr("src", s.AttrOr("data-original", "")), reqURL)
@@ -539,13 +548,14 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []string {
 		if !isSupportedImage(src, opt) {
 			return true
 		}
+		loopCnt += 1
 		w, _ := strconv.Atoi(s.AttrOr("width", "0"))
 		h, _ := strconv.Atoi(s.AttrOr("height", "0"))
 		go func() { ch <- checkImageSize(src, w, h, opt) }()
 		return true
 	})
 
-	timeout := time.After(2000 * time.Millisecond)
+	timeout := time.After(time.Duration(opt.ImageFetchTimeout) * time.Millisecond)
 	for {
 		select {
 		case result := <-ch:
@@ -573,16 +583,18 @@ func isSupportedImage(src string, opt *Option) bool {
 	return true
 }
 
-func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option) *ImageCheck {
+func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option) *imageCheck {
 	width, height := widthFromAttr, heightFromAttr
 	if width == 0 || height == 0 {
 		_, size, err := fastimage.DetectImageType(src)
 		if err != nil {
-			return &ImageCheck{}
+			return &imageCheck{}
 		}
-		width, height = int(size.Width), int(size.Height)
+		if size != nil {
+			width, height = int(size.Width), int(size.Height)
+		}
 	}
-	return &ImageCheck{
+	return &imageCheck{
 		URL:        src,
 		Acceptable: width >= opt.MinImageWidth && height >= opt.MinImageHeight,
 	}

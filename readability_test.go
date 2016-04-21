@@ -30,7 +30,7 @@ func TestExtractFromResponse(t *testing.T) {
 }
 
 func TestPattern(t *testing.T) {
-	p := NewPattern()
+	p := newPattern()
 	assert.Empty(t, p.Video.FindString("http://WWW.ITUBE.COM"))
 	assert.NotEmpty(t, p.Video.FindString("http://WWW.YOUTUBE.COM"))
 	assert.NotEmpty(t, p.UnlikelyCandidates.FindString("My Comment"))
