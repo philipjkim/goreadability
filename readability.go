@@ -136,22 +136,22 @@ func init() {
 	fastimage.SetTimeout(1000)
 }
 
-// ExtractFromResponse requests to reqURL then returns contents extracted from the response.
-func ExtractFromResponse(reqURL string) (*Content, error) {
+// Extract requests to reqURL then returns contents extracted from the response.
+func Extract(reqURL string, opt *Option) (*Content, error) {
 	doc, err := goquery.NewDocument(reqURL)
 	if err != nil {
 		return nil, err
 	}
-	return Extract(doc, reqURL)
+	return ExtractFromDocument(doc, reqURL, opt)
 }
 
-// Extract returns Content when extraction succeeds, otherwise error.
+// ExtractFromDocument returns Content when extraction succeeds, otherwise error.
+// reqURL is required for converting relative image paths to absolute.
 //
 // If you already have *goquery.Document after requesting HTTP, use this function,
-// otherwise use ExtractFromResponse(reqURL).
-func Extract(doc *goquery.Document, reqURL string) (*Content, error) {
+// otherwise use Extract(reqURL, opt).
+func ExtractFromDocument(doc *goquery.Document, reqURL string, opt *Option) (*Content, error) {
 	title := strings.TrimSpace(doc.Find("title").First().Text())
-	opt := NewOption()
 	return &Content{
 		Title:       title,
 		Description: description(doc, opt),

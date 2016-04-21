@@ -11,8 +11,9 @@ import (
 var urlWithAbsoluteImgPaths = "http://m.twins.mlb.com/news/article/172850240/twins-impressed-by-byung-ho-parks-home-run"
 var urlWithRelativeImgPaths = "http://weplanner.co.kr/?webid=160815854"
 
-func TestExtractFromResponse(t *testing.T) {
-	c, err := ExtractFromResponse(urlWithAbsoluteImgPaths)
+func TestExtract(t *testing.T) {
+	opt := NewOption()
+	c, err := Extract(urlWithAbsoluteImgPaths, opt)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, c.Title)
 	assert.NotContains(t, c.Title, "\n")
@@ -20,7 +21,7 @@ func TestExtractFromResponse(t *testing.T) {
 	assert.NotContains(t, c.Description, "\n")
 	assert.NotEmpty(t, c.Images)
 
-	c, err = ExtractFromResponse(urlWithRelativeImgPaths)
+	c, err = Extract(urlWithRelativeImgPaths, opt)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, c.Title)
 	assert.NotContains(t, c.Title, "\n")
