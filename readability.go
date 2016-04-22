@@ -30,7 +30,7 @@ type Option struct {
 	MinImageHeight           int
 	MaxImageCount            int
 	CheckImageLoopCount      int
-	ImageFetchTimeout        int
+	ImageRequestTimeout      int
 	IgnoreImageFormat        []string
 	Blacklist                string
 	Whitelist                string
@@ -50,7 +50,7 @@ func NewOption() *Option {
 		MinImageHeight:           100,
 		MaxImageCount:            3,
 		CheckImageLoopCount:      10,
-		ImageFetchTimeout:        1500,
+		ImageRequestTimeout:      2000,
 		IgnoreImageFormat:        []string{"data:image/", ".svg", ".webp"},
 		Blacklist:                "",
 		Whitelist:                "",
@@ -70,7 +70,7 @@ func copyOption(o *Option) *Option {
 		MinImageHeight:           o.MinImageHeight,
 		MaxImageCount:            o.MaxImageCount,
 		CheckImageLoopCount:      o.CheckImageLoopCount,
-		ImageFetchTimeout:        o.ImageFetchTimeout,
+		ImageRequestTimeout:      o.ImageRequestTimeout,
 		IgnoreImageFormat:        o.IgnoreImageFormat,
 		Blacklist:                o.Blacklist,
 		Whitelist:                o.Whitelist,
@@ -130,10 +130,6 @@ type Content struct {
 	Description string
 	Author      string
 	Images      []string
-}
-
-func init() {
-	fastimage.SetTimeout(1000)
 }
 
 // Extract requests to reqURL then returns contents extracted from the response.
@@ -555,7 +551,7 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []string {
 		return true
 	})
 
-	timeout := time.After(time.Duration(opt.ImageFetchTimeout) * time.Millisecond)
+	timeout := time.After(time.Duration(opt.ImageRequestTimeout+100) * time.Millisecond)
 	for {
 		select {
 		case result := <-ch:
@@ -586,6 +582,7 @@ func isSupportedImage(src string, opt *Option) bool {
 func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option) *imageCheck {
 	width, height := widthFromAttr, heightFromAttr
 	if width == 0 || height == 0 {
+		fastimage.SetTimeout(opt.ImageRequestTimeout)
 		_, size, err := fastimage.DetectImageType(src)
 		if err != nil {
 			return &imageCheck{}

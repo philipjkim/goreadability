@@ -14,7 +14,7 @@ func Example() {
 	opt := readability.NewOption()
 
 	// You can modify some option values if needed.
-	opt.ImageFetchTimeout = 3000 // ms
+	opt.ImageRequestTimeout = 3000 // ms
 
 	content, err := readability.Extract(url, opt)
 	if err != nil {
