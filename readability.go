@@ -531,10 +531,9 @@ type imageCheck struct {
 func images(doc *goquery.Document, reqURL string, opt *Option) []string {
 	ch := make(chan *imageCheck)
 	imgs := []string{}
-	quitLoop := false
 	loopCnt := 0
 	doc.Find("img").EachWithBreak(func(i int, s *goquery.Selection) bool {
-		if quitLoop || loopCnt >= opt.CheckImageLoopCount {
+		if loopCnt >= opt.CheckImageLoopCount {
 			return false
 		}
 		src, err := absPath(s.AttrOr("src", s.AttrOr("data-original", "")), reqURL)
@@ -559,11 +558,9 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []string {
 				imgs = append(imgs, result.URL)
 			}
 			if len(imgs) >= opt.MaxImageCount {
-				quitLoop = true
 				return imgs
 			}
 		case <-timeout:
-			quitLoop = true
 			return imgs
 		}
 	}
