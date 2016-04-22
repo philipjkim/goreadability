@@ -18,13 +18,23 @@ Example
 -------
 
 ```go
-r, err := readability.ExtractFromResponse("http://m.twins.mlb.com/news/article/172850240/twins-impressed-by-byung-ho-parks-home-run")
+// URL to extract contents (title, description, images, ...)
+url := "https://en.wikipedia.org/wiki/Lego"
+
+// Default option
+opt := readability.NewOption()
+
+// You can modify some option values if needed.
+opt.ImageRequestTimeout = 3000 // ms
+
+content, err := readability.Extract(url, opt)
 if err != nil {
-    // Something went wrong.
-    panic(err)
+    log.Fatal(err)
 }
 
-fmt.Println(r)
+log.Println(content.Title)
+log.Println(content.Description)
+log.Println(content.Images)
 ```
 
 
