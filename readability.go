@@ -1,3 +1,5 @@
+// Port of arc90's readability project to Go
+
 package readability
 
 import (
@@ -20,21 +22,54 @@ import (
 
 // Option contains variety of options for extracting page content and images.
 type Option struct {
-	RetryLength              int
-	MinTextLength            int
+	// RetryLength is minimum length for a page description.
+	// It will retry to extract page description with more liberal rule
+	// if extracted description length is less than this value.
+	RetryLength int
+
+	// MinTextLength is minimum length of an inner text for a tag.
+	// If a tag has short inner text (length is less than MinTextLength),
+	// the text will be discarded from the page description candidates.
+	MinTextLength int
+
+	// RemoveUnlikelyCandidates is a flag whether to remove some tags
+	// if they are considered relatively unimportant.
 	RemoveUnlikelyCandidates bool
-	WeightClasses            bool
-	CleanConditionally       bool
-	RemoveEmptyNodes         bool
-	MinImageWidth            int
-	MinImageHeight           int
-	MaxImageCount            int
-	CheckImageLoopCount      int
-	ImageRequestTimeout      uint
-	IgnoreImageFormat        []string
-	Blacklist                string
-	Whitelist                string
-	ContentAsPlainText       bool
+
+	// WeightClasses is a flag whether to give more/less weight to some tags
+	// if they contain some positive/negative words in id/class value.
+	WeightClasses bool
+
+	// CleanConditionally is a flag whether to remove some tags
+	// using various rules in conditionalCleanReason().
+	CleanConditionally bool
+
+	// RemoveEmptyNodes is a flag whether to remove some tags which have empty inner text.
+	RemoveEmptyNodes bool
+
+	// MinImageWidth is the minimum width (pixel) for choosing images.
+	MinImageWidth int
+
+	// MinImageHeight is the minimum height (pixel) for choosing images.
+	MinImageHeight int
+
+	// MaxImageCount is the maximum number of images for a web page.
+	MaxImageCount int
+
+	// CheckImageLoopCount is the number of images for parallel requests to fetch the image size.
+	// For example, if this value is set to 10,
+	// the first 10 image sources in img tag will be requested.
+	CheckImageLoopCount int
+
+	// ImageRequestTimeout is timeout(ms) for a single image request.
+	ImageRequestTimeout uint
+
+	// IgnoreImageFormat is an array of strings for ignoring some images.
+	// If an image URL contains at least one of strings in this array, the image will be ignored.
+	IgnoreImageFormat []string
+
+	// ContentAsPlainText is a flag whether to strip all tags in a description value.
+	ContentAsPlainText bool
 }
 
 // NewOption returns the default option.
@@ -52,8 +87,6 @@ func NewOption() *Option {
 		CheckImageLoopCount:      10,
 		ImageRequestTimeout:      2000,
 		IgnoreImageFormat:        []string{"data:image/", ".svg", ".webp"},
-		Blacklist:                "",
-		Whitelist:                "",
 		ContentAsPlainText:       true,
 	}
 }
@@ -72,8 +105,6 @@ func copyOption(o *Option) *Option {
 		CheckImageLoopCount:      o.CheckImageLoopCount,
 		ImageRequestTimeout:      o.ImageRequestTimeout,
 		IgnoreImageFormat:        o.IgnoreImageFormat,
-		Blacklist:                o.Blacklist,
-		Whitelist:                o.Whitelist,
 		ContentAsPlainText:       o.ContentAsPlainText,
 	}
 }
