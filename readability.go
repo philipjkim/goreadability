@@ -30,7 +30,7 @@ type Option struct {
 	MinImageHeight           int
 	MaxImageCount            int
 	CheckImageLoopCount      int
-	ImageRequestTimeout      int
+	ImageRequestTimeout      uint
 	IgnoreImageFormat        []string
 	Blacklist                string
 	Whitelist                string
@@ -579,8 +579,7 @@ func isSupportedImage(src string, opt *Option) bool {
 func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option) *imageCheck {
 	width, height := widthFromAttr, heightFromAttr
 	if width == 0 || height == 0 {
-		fastimage.SetTimeout(opt.ImageRequestTimeout)
-		_, size, err := fastimage.DetectImageType(src)
+		_, size, err := fastimage.DetectImageTypeWithTimeout(src, opt.ImageRequestTimeout)
 		if err != nil {
 			return &imageCheck{}
 		}
