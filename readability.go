@@ -564,11 +564,6 @@ func sortCandidates(candidates map[string]candidate) candidateList {
 	return cl
 }
 
-type imageCheck struct {
-	URL        string
-	Acceptable bool
-}
-
 func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 	ch := make(chan *Image)
 	imgs := []Image{}
