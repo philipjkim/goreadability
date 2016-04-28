@@ -590,7 +590,9 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 	for {
 		select {
 		case result := <-ch:
-			if result.Size.Width >= opt.MinImageWidth && result.Size.Height >= opt.MinImageHeight {
+			if result.Size != nil &&
+				result.Size.Width >= opt.MinImageWidth &&
+				result.Size.Height >= opt.MinImageHeight {
 				imgs = append(imgs, *result)
 			}
 			if len(imgs) >= opt.MaxImageCount {
