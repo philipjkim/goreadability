@@ -98,7 +98,7 @@ func NewOption() *Option {
 		MinImageHeight:               100,
 		MaxImageCount:                3,
 		CheckImageLoopCount:          10,
-		ImageRequestTimeout:          2000,
+		ImageRequestTimeout:          1000,
 		IgnoreImageFormat:            []string{"data:image/", ".svg", ".webp"},
 		DescriptionAsPlainText:       true,
 		DescriptionExtractionTimeout: 500,
@@ -202,50 +202,32 @@ func ExtractFromDocument(doc *goquery.Document, reqURL string, opt *Option) (*Co
 }
 
 func description(doc *goquery.Document, opt *Option) string {
-	ch := make(chan string)
-
-	go func() {
-		candidates := prepareCandidates(doc, opt)
-		article, err := getArticle(candidates)
-		if err != nil {
-			ch <- ""
-			return
-		}
-		cleanedArticle := sanitize(article, candidates, opt)
-		if opt.DescriptionAsPlainText {
-			cleanedArticle = patterns.Tag.ReplaceAllString(cleanedArticle, " ")
-			cleanedArticle = patterns.Trimmable.ReplaceAllString(cleanedArticle, " ")
-
-		}
-		if len(cleanedArticle) < opt.RetryLength {
-			newOpts := copyOption(opt)
-			if newOpts.RemoveUnlikelyCandidates {
-				newOpts.RemoveUnlikelyCandidates = false
-			} else if newOpts.WeightClasses {
-				newOpts.WeightClasses = false
-			} else if newOpts.CleanConditionally {
-				newOpts.CleanConditionally = false
-			} else {
-				ch <- cleanedArticle
-				return
-			}
-			description(doc, newOpts)
-			return
-		}
-
-		ch <- cleanedArticle
-		return
-	}()
-
-	timeout := time.After(time.Duration(opt.DescriptionExtractionTimeout) * time.Millisecond)
-	for {
-		select {
-		case result := <-ch:
-			return result
-		case <-timeout:
-			return ""
-		}
+	candidates := prepareCandidates(doc, opt)
+	article, err := getArticle(candidates)
+	if err != nil {
+		return ""
 	}
+	cleanedArticle := sanitize(article, candidates, opt)
+	if opt.DescriptionAsPlainText {
+		cleanedArticle = patterns.Tag.ReplaceAllString(cleanedArticle, " ")
+		cleanedArticle = patterns.Trimmable.ReplaceAllString(cleanedArticle, " ")
+
+	}
+	if len(cleanedArticle) < opt.RetryLength {
+		newOpts := copyOption(opt)
+		if newOpts.RemoveUnlikelyCandidates {
+			newOpts.RemoveUnlikelyCandidates = false
+		} else if newOpts.WeightClasses {
+			newOpts.WeightClasses = false
+		} else if newOpts.CleanConditionally {
+			newOpts.CleanConditionally = false
+		} else {
+			return cleanedArticle
+		}
+		return description(doc, newOpts)
+	}
+
+	return cleanedArticle
 }
 
 func prepareCandidates(doc *goquery.Document, opt *Option) *candidates {
@@ -431,48 +413,70 @@ func transformMisusedDivsIntoP(doc *goquery.Document) {
 }
 
 func getCandidates(doc *goquery.Document, opt *Option) *candidates {
-	cMap := map[string]candidate{}
-	doc.Find("p, td").Each(func(i int, s *goquery.Selection) {
-		parent := s.Parent()
-		var grandParent *goquery.Selection
-		if parent == nil {
-			grandParent = nil
-		} else {
-			grandParent = parent.Parent()
-		}
-		innerText := s.Text()
+	ch := make(chan *candidates)
+	quit := false
 
-		if len(innerText) < opt.MinTextLength {
-			return
-		}
+	go func() {
+		cMap := map[string]candidate{}
+		doc.Find("p, td").EachWithBreak(func(i int, s *goquery.Selection) bool {
+			if quit {
+				return false
+			}
+			parent := s.Parent()
+			var grandParent *goquery.Selection
+			if parent == nil {
+				grandParent = nil
+			} else {
+				grandParent = parent.Parent()
+			}
+			innerText := s.Text()
 
-		score := 1.0
-		score += float64(len(strings.Split(innerText, ",")))
-		score += math.Min((float64(len(innerText)) / 100.0), 3.0)
+			if len(innerText) < opt.MinTextLength {
+				return true
+			}
 
-		psel := newMySelection(parent)
-		if _, ok := cMap[psel.HTML()]; !ok {
-			cMap[psel.HTML()] = candidate{Node: psel, Score: scoreNode(parent, opt) + score}
-		}
+			score := 1.0
+			score += float64(len(strings.Split(innerText, ",")))
+			score += math.Min((float64(len(innerText)) / 100.0), 3.0)
 
-		if grandParent != nil {
-			gsel := newMySelection(grandParent)
-			if _, ok := cMap[gsel.HTML()]; !ok {
-				cMap[gsel.HTML()] = candidate{
-					Node:  gsel,
-					Score: scoreNode(grandParent, opt) + (score / 2.0),
+			psel := newMySelection(parent)
+			if _, ok := cMap[psel.HTML()]; !ok {
+				cMap[psel.HTML()] = candidate{Node: psel, Score: scoreNode(parent, opt) + score}
+			}
+
+			if grandParent != nil {
+				gsel := newMySelection(grandParent)
+				if _, ok := cMap[gsel.HTML()]; !ok {
+					cMap[gsel.HTML()] = candidate{
+						Node:  gsel,
+						Score: scoreNode(grandParent, opt) + (score / 2.0),
+					}
 				}
 			}
-		}
-	})
+			return true
+		})
 
-	// Scale the final candidates score based on link density.
-	// Good content should have a relatively small link density (5% or less)
-	// and be mostly unaffected by this operation.
-	for k, v := range cMap {
-		cMap[k] = candidate{Node: v.Node, Score: v.Score * (1 - linkDensity(v.Node.Selection))}
+		// Scale the final candidates score based on link density.
+		// Good content should have a relatively small link density (5% or less)
+		// and be mostly unaffected by this operation.
+		for k, v := range cMap {
+			cMap[k] = candidate{Node: v.Node, Score: v.Score * (1 - linkDensity(v.Node.Selection))}
+		}
+		ch <- &candidates{Map: cMap, List: sortCandidates(cMap)}
+		return
+	}()
+
+	timeout := time.After(time.Duration(opt.DescriptionExtractionTimeout) * time.Millisecond)
+	for {
+		select {
+		case result := <-ch:
+			quit = true
+			return result
+		case <-timeout:
+			quit = true
+			return &candidates{Map: map[string]candidate{}, List: candidateList{}}
+		}
 	}
-	return &candidates{Map: cMap, List: sortCandidates(cMap)}
 }
 
 var elemScores = map[string]float64{

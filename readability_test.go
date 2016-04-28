@@ -93,3 +93,13 @@ func TestAbsPath(t *testing.T) {
 	_, err = absPath(in, url)
 	assert.NotNil(t, err)
 }
+
+func TestDescriptionTimeout(t *testing.T) {
+	url := "http://jadimatahari.blogspot.kr/2016/04/kisah-kriminalisasi-jis.html?m=1"
+	opt := NewOption()
+	c, err := Extract(url, opt)
+	assert.Nil(t, err)
+	assert.NotNil(t, c)
+	assert.Empty(t, c.Description)
+	assert.NotEmpty(t, c.Images)
+}
