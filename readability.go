@@ -16,9 +16,19 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/rubenfonseca/fastimage"
+	"github.com/philipjkim/fastimage"
 	"golang.org/x/net/html"
 )
+
+// Image contains URL and Size (width and height in pixel).
+type Image struct {
+	URL  string
+	Size *fastimage.ImageSize
+}
+
+func (i Image) String() string {
+	return fmt.Sprintf("{URL: %v, Size: %vx%v}", i.URL, i.Size.Width, i.Size.Height)
+}
 
 // Option contains variety of options for extracting page content and images.
 type Option struct {
@@ -48,10 +58,10 @@ type Option struct {
 	RemoveEmptyNodes bool
 
 	// MinImageWidth is the minimum width (pixel) for choosing images.
-	MinImageWidth int
+	MinImageWidth uint32
 
 	// MinImageHeight is the minimum height (pixel) for choosing images.
-	MinImageHeight int
+	MinImageHeight uint32
 
 	// MaxImageCount is the maximum number of images for a web page.
 	MaxImageCount int
@@ -59,7 +69,7 @@ type Option struct {
 	// CheckImageLoopCount is the number of images for parallel requests to fetch the image size.
 	// For example, if this value is set to 10,
 	// the first 10 image sources in img tag will be requested.
-	CheckImageLoopCount int
+	CheckImageLoopCount uint
 
 	// ImageRequestTimeout is timeout(ms) for a single image request.
 	ImageRequestTimeout uint
@@ -160,7 +170,7 @@ type Content struct {
 	Title       string
 	Description string
 	Author      string
-	Images      []string
+	Images      []Image
 }
 
 // Extract requests to reqURL then returns contents extracted from the response.
@@ -559,10 +569,10 @@ type imageCheck struct {
 	Acceptable bool
 }
 
-func images(doc *goquery.Document, reqURL string, opt *Option) []string {
-	ch := make(chan *imageCheck)
-	imgs := []string{}
-	loopCnt := 0
+func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
+	ch := make(chan *Image)
+	imgs := []Image{}
+	loopCnt := uint(0)
 	doc.Find("img").EachWithBreak(func(i int, s *goquery.Selection) bool {
 		if loopCnt >= opt.CheckImageLoopCount {
 			return false
@@ -581,12 +591,12 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []string {
 		return true
 	})
 
-	timeout := time.After(time.Duration(opt.ImageRequestTimeout+100) * time.Millisecond)
+	timeout := time.After(time.Duration(opt.ImageRequestTimeout+50) * time.Millisecond)
 	for {
 		select {
 		case result := <-ch:
-			if result.Acceptable {
-				imgs = append(imgs, result.URL)
+			if result.Size.Width >= opt.MinImageWidth && result.Size.Height >= opt.MinImageHeight {
+				imgs = append(imgs, *result)
 			}
 			if len(imgs) >= opt.MaxImageCount {
 				return imgs
@@ -607,20 +617,20 @@ func isSupportedImage(src string, opt *Option) bool {
 	return true
 }
 
-func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option) *imageCheck {
+func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option) *Image {
 	width, height := widthFromAttr, heightFromAttr
 	if width == 0 || height == 0 {
 		_, size, err := fastimage.DetectImageTypeWithTimeout(src, opt.ImageRequestTimeout)
 		if err != nil {
-			return &imageCheck{}
+			return &Image{}
 		}
 		if size != nil {
 			width, height = int(size.Width), int(size.Height)
 		}
 	}
-	return &imageCheck{
-		URL:        src,
-		Acceptable: width >= opt.MinImageWidth && height >= opt.MinImageHeight,
+	return &Image{
+		URL:  src,
+		Size: &fastimage.ImageSize{Width: uint32(width), Height: uint32(height)},
 	}
 }
 

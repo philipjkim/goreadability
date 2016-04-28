@@ -38,12 +38,6 @@ log.Println(content.Images)
 ```
 
 
-Options
--------
-
-TODO
-
-
 Command Line Tool
 -----------------
 
@@ -54,6 +48,7 @@ Related Projects
 ----------------
 
 * [ruby-readability](https://github.com/cantino/ruby-readability) is the base of this project.
+* [fastimage](https://github.com/rubenfonseca/fastimage) finds the type and/or size of a remote image given its uri, by fetching as little as needed.
 
 
 Potential Issues
