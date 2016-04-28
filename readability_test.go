@@ -13,6 +13,7 @@ var urlWithRelativeImgPaths = "http://www.boogiejack.com/server_paths.html"
 
 func TestExtract(t *testing.T) {
 	opt := NewOption()
+	opt.ImageRequestTimeout = 500
 	c, err := Extract(urlWithAbsoluteImgPaths, opt)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, c.Title)

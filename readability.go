@@ -78,44 +78,49 @@ type Option struct {
 	// If an image URL contains at least one of strings in this array, the image will be ignored.
 	IgnoreImageFormat []string
 
-	// ContentAsPlainText is a flag whether to strip all tags in a description value.
-	ContentAsPlainText bool
+	// DescriptionAsPlainText is a flag whether to strip all tags in a description value.
+	DescriptionAsPlainText bool
+
+	// DescriptionExtractionTimeout is timeout(ms) for extracting description for a page.
+	DescriptionExtractionTimeout uint
 }
 
 // NewOption returns the default option.
 func NewOption() *Option {
 	return &Option{
-		RetryLength:              250,
-		MinTextLength:            25,
-		RemoveUnlikelyCandidates: true,
-		WeightClasses:            true,
-		CleanConditionally:       true,
-		RemoveEmptyNodes:         true,
-		MinImageWidth:            200,
-		MinImageHeight:           100,
-		MaxImageCount:            3,
-		CheckImageLoopCount:      10,
-		ImageRequestTimeout:      2000,
-		IgnoreImageFormat:        []string{"data:image/", ".svg", ".webp"},
-		ContentAsPlainText:       true,
+		RetryLength:                  250,
+		MinTextLength:                25,
+		RemoveUnlikelyCandidates:     true,
+		WeightClasses:                true,
+		CleanConditionally:           true,
+		RemoveEmptyNodes:             true,
+		MinImageWidth:                200,
+		MinImageHeight:               100,
+		MaxImageCount:                3,
+		CheckImageLoopCount:          10,
+		ImageRequestTimeout:          2000,
+		IgnoreImageFormat:            []string{"data:image/", ".svg", ".webp"},
+		DescriptionAsPlainText:       true,
+		DescriptionExtractionTimeout: 500,
 	}
 }
 
 func copyOption(o *Option) *Option {
 	return &Option{
-		RetryLength:              o.RetryLength,
-		MinTextLength:            o.MinTextLength,
-		RemoveUnlikelyCandidates: o.RemoveUnlikelyCandidates,
-		WeightClasses:            o.WeightClasses,
-		CleanConditionally:       o.CleanConditionally,
-		RemoveEmptyNodes:         o.RemoveEmptyNodes,
-		MinImageWidth:            o.MinImageWidth,
-		MinImageHeight:           o.MinImageHeight,
-		MaxImageCount:            o.MaxImageCount,
-		CheckImageLoopCount:      o.CheckImageLoopCount,
-		ImageRequestTimeout:      o.ImageRequestTimeout,
-		IgnoreImageFormat:        o.IgnoreImageFormat,
-		ContentAsPlainText:       o.ContentAsPlainText,
+		RetryLength:                  o.RetryLength,
+		MinTextLength:                o.MinTextLength,
+		RemoveUnlikelyCandidates:     o.RemoveUnlikelyCandidates,
+		WeightClasses:                o.WeightClasses,
+		CleanConditionally:           o.CleanConditionally,
+		RemoveEmptyNodes:             o.RemoveEmptyNodes,
+		MinImageWidth:                o.MinImageWidth,
+		MinImageHeight:               o.MinImageHeight,
+		MaxImageCount:                o.MaxImageCount,
+		CheckImageLoopCount:          o.CheckImageLoopCount,
+		ImageRequestTimeout:          o.ImageRequestTimeout,
+		IgnoreImageFormat:            o.IgnoreImageFormat,
+		DescriptionAsPlainText:       o.DescriptionAsPlainText,
+		DescriptionExtractionTimeout: o.DescriptionExtractionTimeout,
 	}
 }
 
@@ -197,32 +202,50 @@ func ExtractFromDocument(doc *goquery.Document, reqURL string, opt *Option) (*Co
 }
 
 func description(doc *goquery.Document, opt *Option) string {
-	candidates := prepareCandidates(doc, opt)
-	article, err := getArticle(candidates)
-	if err != nil {
-		return ""
-	}
-	cleanedArticle := sanitize(article, candidates, opt)
-	if opt.ContentAsPlainText {
-		cleanedArticle = patterns.Tag.ReplaceAllString(cleanedArticle, " ")
-		cleanedArticle = patterns.Trimmable.ReplaceAllString(cleanedArticle, " ")
+	ch := make(chan string)
 
-	}
-	if len(cleanedArticle) < opt.RetryLength {
-		newOpts := copyOption(opt)
-		if newOpts.RemoveUnlikelyCandidates {
-			newOpts.RemoveUnlikelyCandidates = false
-		} else if newOpts.WeightClasses {
-			newOpts.WeightClasses = false
-		} else if newOpts.CleanConditionally {
-			newOpts.CleanConditionally = false
-		} else {
-			return cleanedArticle
+	go func() {
+		candidates := prepareCandidates(doc, opt)
+		article, err := getArticle(candidates)
+		if err != nil {
+			ch <- ""
+			return
 		}
-		return description(doc, newOpts)
-	}
+		cleanedArticle := sanitize(article, candidates, opt)
+		if opt.DescriptionAsPlainText {
+			cleanedArticle = patterns.Tag.ReplaceAllString(cleanedArticle, " ")
+			cleanedArticle = patterns.Trimmable.ReplaceAllString(cleanedArticle, " ")
 
-	return cleanedArticle
+		}
+		if len(cleanedArticle) < opt.RetryLength {
+			newOpts := copyOption(opt)
+			if newOpts.RemoveUnlikelyCandidates {
+				newOpts.RemoveUnlikelyCandidates = false
+			} else if newOpts.WeightClasses {
+				newOpts.WeightClasses = false
+			} else if newOpts.CleanConditionally {
+				newOpts.CleanConditionally = false
+			} else {
+				ch <- cleanedArticle
+				return
+			}
+			description(doc, newOpts)
+			return
+		}
+
+		ch <- cleanedArticle
+		return
+	}()
+
+	timeout := time.After(time.Duration(opt.DescriptionExtractionTimeout) * time.Millisecond)
+	for {
+		select {
+		case result := <-ch:
+			return result
+		case <-timeout:
+			return ""
+		}
+	}
 }
 
 func prepareCandidates(doc *goquery.Document, opt *Option) *candidates {
