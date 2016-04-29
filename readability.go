@@ -202,7 +202,10 @@ func ExtractFromDocument(doc *goquery.Document, reqURL string, opt *Option) (*Co
 }
 
 func description(doc *goquery.Document, opt *Option) string {
-	candidates := prepareCandidates(doc, opt)
+	candidates, err := prepareCandidates(doc, opt)
+	if err != nil {
+		return ""
+	}
 	article, err := getArticle(candidates)
 	if err != nil {
 		return ""
@@ -230,13 +233,19 @@ func description(doc *goquery.Document, opt *Option) string {
 	return cleanedArticle
 }
 
-func prepareCandidates(doc *goquery.Document, opt *Option) *candidates {
+func prepareCandidates(doc *goquery.Document, opt *Option) (*candidates, error) {
 	doc.Find("style, script").Each(func(i int, s *goquery.Selection) {
 		s.Remove()
 	})
 
-	removeUnlikelyCandidates(doc, opt)
-	transformMisusedDivsIntoP(doc)
+	err := removeUnlikelyCandidates(doc, opt)
+	if err != nil {
+		return nil, err
+	}
+	err = transformMisusedDivsIntoP(doc, opt)
+	if err != nil {
+		return nil, err
+	}
 
 	return getCandidates(doc, opt)
 }
@@ -384,9 +393,23 @@ func conditionalCleanReason(tagName string, counts map[string]int,
 	}
 }
 
-func removeUnlikelyCandidates(doc *goquery.Document, opt *Option) {
-	if opt.RemoveUnlikelyCandidates {
-		doc.Find("*").Each(func(i int, s *goquery.Selection) {
+func removeUnlikelyCandidates(doc *goquery.Document, opt *Option) error {
+	if !opt.RemoveUnlikelyCandidates {
+		return nil
+	}
+
+	ch := make(chan error)
+	quit := false
+
+	go func() {
+		sel := doc.Find("*")
+		if quit {
+			return
+		}
+		sel.EachWithBreak(func(i int, s *goquery.Selection) bool {
+			if quit {
+				return false
+			}
 			cls, _ := s.Attr("class")
 			id, _ := s.Attr("id")
 			str := cls + id
@@ -396,23 +419,58 @@ func removeUnlikelyCandidates(doc *goquery.Document, opt *Option) {
 				goquery.NodeName(s) != "body" {
 				s.Remove()
 			}
+			return true
 		})
+		ch <- nil
+		return
+	}()
+
+	timeout := time.After(time.Duration(opt.DescriptionExtractionTimeout) * time.Millisecond)
+	select {
+	case err := <-ch:
+		return err
+	case <-timeout:
+		quit = true
+		return errors.New("readability.removeUnlikelyCandidates timed out")
 	}
 }
 
-func transformMisusedDivsIntoP(doc *goquery.Document) {
-	// Transform <div>s that do not contain other block elements into <p>s.
-	doc.Find("*").Each(func(i int, s *goquery.Selection) {
-		if goquery.NodeName(s) == "div" {
-			innerHtml, _ := s.Html()
-			if patterns.DivToPElements.FindString(innerHtml) == "" {
-				s.Get(0).Data = "p"
-			}
+func transformMisusedDivsIntoP(doc *goquery.Document, opt *Option) error {
+	ch := make(chan error)
+	quit := false
+
+	go func() {
+		sel := doc.Find("*")
+		if quit {
+			return
 		}
-	})
+		sel.EachWithBreak(func(i int, s *goquery.Selection) bool {
+			if quit {
+				return false
+			}
+			if goquery.NodeName(s) == "div" {
+				innerHtml, _ := s.Html()
+				if patterns.DivToPElements.FindString(innerHtml) == "" {
+					s.Get(0).Data = "p"
+				}
+			}
+			return true
+		})
+		ch <- nil
+		return
+	}()
+
+	timeout := time.After(time.Duration(opt.DescriptionExtractionTimeout) * time.Millisecond)
+	select {
+	case err := <-ch:
+		return err
+	case <-timeout:
+		quit = true
+		return errors.New("readability.transformMisusedDivsIntoP timed out")
+	}
 }
 
-func getCandidates(doc *goquery.Document, opt *Option) *candidates {
+func getCandidates(doc *goquery.Document, opt *Option) (*candidates, error) {
 	ch := make(chan *candidates)
 	quit := false
 
@@ -471,10 +529,10 @@ func getCandidates(doc *goquery.Document, opt *Option) *candidates {
 		select {
 		case result := <-ch:
 			quit = true
-			return result
+			return result, nil
 		case <-timeout:
 			quit = true
-			return &candidates{Map: map[string]candidate{}, List: candidateList{}}
+			return nil, errors.New("readability.getCandidates timed out")
 		}
 	}
 }

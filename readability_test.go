@@ -95,11 +95,12 @@ func TestAbsPath(t *testing.T) {
 }
 
 func TestDescriptionTimeout(t *testing.T) {
-	url := "http://jadimatahari.blogspot.kr/2016/04/kisah-kriminalisasi-jis.html?m=1"
+	url := "http://activedomaining.com"
 	opt := NewOption()
+	opt.DescriptionExtractionTimeout = 500
 	c, err := Extract(url, opt)
 	assert.Nil(t, err)
 	assert.NotNil(t, c)
 	assert.Empty(t, c.Description)
-	assert.NotEmpty(t, c.Images)
+	assert.Empty(t, c.Images)
 }
