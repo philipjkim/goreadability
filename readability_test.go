@@ -68,6 +68,12 @@ func TestAbsPath(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "http://www.kakao.com/img/b.jpg", out)
 
+	// for relative path not starting with "/" and reqURL does not have subdirectories
+	in = "img/b.jpg"
+	out, err = absPath(in, "http://www.kakao.com")
+	assert.Nil(t, err)
+	assert.Equal(t, "http://www.kakao.com/img/b.jpg", out)
+
 	// for relative path not starting with "/"
 	url = "https://www.wto.org/english/tratop_e/envir_e/envir_req_e.htm"
 	in = "../../../images/top_logo.gif"

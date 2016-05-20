@@ -741,7 +741,14 @@ func absPath(in string, reqURLStr string) (out string, err error) {
 	if strings.HasPrefix(in, "/") {
 		return reqURL.Scheme + "://" + reqURL.Host + in, nil
 	}
-	result := reqURLStr[:strings.LastIndex(reqURLStr, "/")+1] + in
+
+	var result string
+	sPos := strings.LastIndex(reqURLStr, "/")
+	if sPos < 8 {
+		result = reqURLStr + "/" + in
+	} else {
+		result = reqURLStr[:sPos+1] + in
+	}
 	_, err = url.Parse(result)
 	if err != nil {
 		return "", err
