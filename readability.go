@@ -197,6 +197,7 @@ func ExtractFromDocument(doc *goquery.Document, reqURL string, opt *Option) (*Co
 	return &Content{
 		Title:       title,
 		Description: description(doc, opt),
+		Author:      author(doc),
 		Images:      images(doc, reqURL, opt),
 	}, nil
 }
@@ -714,6 +715,54 @@ func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option) 
 		URL:  src,
 		Size: &fastimage.ImageSize{Width: uint32(width), Height: uint32(height)},
 	}
+}
+
+func author(doc *goquery.Document) string {
+	var author string
+	var found bool
+
+	// <meta name="dc.creator" content="Finch - http://www.getfinch.com" />
+	// <meta name="author" content="Soo Philip Jason Kim" />
+	doc.Find("meta").EachWithBreak(func(i int, s *goquery.Selection) bool {
+		if s.AttrOr("name", "") == "dc.creator" {
+			author, found = s.Attr("content")
+			if found {
+				return false
+			}
+		}
+		if s.AttrOr("name", "") == "author" {
+			author, found = s.Attr("content")
+			if found {
+				return false
+			}
+		}
+		return true
+	})
+	if author != "" {
+		return author
+	}
+
+	// <span class="author"><span class="faded">By</span> Rhett Bollinger</span>
+	doc.Find("span.author").EachWithBreak(func(i int, s *goquery.Selection) bool {
+		if s.Text() != "" {
+			author = strings.TrimSpace(s.Text())
+			return false
+		}
+		return true
+	})
+	if author != "" {
+		return author
+	}
+
+	// <a rel="author" href="http://dbanksdesign.com">Danny Banks (rel)</a>
+	doc.Find("a").EachWithBreak(func(i int, s *goquery.Selection) bool {
+		if s.AttrOr("rel", "") == "author" {
+			author = strings.TrimSpace(s.Text())
+			return false
+		}
+		return true
+	})
+	return author
 }
 
 func absPath(in string, reqURLStr string) (out string, err error) {

@@ -101,12 +101,33 @@ func TestAbsPath(t *testing.T) {
 }
 
 func TestDescriptionTimeout(t *testing.T) {
-	url := "http://activedomaining.com"
+	url := "https://tools.ietf.org/rfc/"
 	opt := NewOption()
-	opt.DescriptionExtractionTimeout = 500
+	opt.DescriptionExtractionTimeout = 100
 	c, err := Extract(url, opt)
 	assert.Nil(t, err)
 	assert.NotNil(t, c)
 	assert.Empty(t, c.Description)
 	assert.Empty(t, c.Images)
+}
+
+func TestAuthor(t *testing.T) {
+	// <span class="author"><span class="faded">By</span> Rhett Bollinger</span>
+	doc, _ := goquery.NewDocument(urlWithAbsoluteImgPaths)
+	assert.Equal(t, "By Rhett Bollinger", author(doc))
+
+	// <meta name="dc.creator" content="Finch" />
+	html := `<head><meta name="dc.creator" content="Finch" /></head>`
+	doc, _ = goquery.NewDocumentFromReader(strings.NewReader(html))
+	assert.Equal(t, "Finch", author(doc))
+
+	// <meta name="author" content="philip" />
+	html = `<head><meta name="author" content="philip" /></head>`
+	doc, _ = goquery.NewDocumentFromReader(strings.NewReader(html))
+	assert.Equal(t, "philip", author(doc))
+
+	// <a rel="author" href="http://dbanksdesign.com">Danny Banks (rel)</a>
+	html = `<a rel="author" href="http://dbanksdesign.com">Danny Banks (rel)</a>`
+	doc, _ = goquery.NewDocumentFromReader(strings.NewReader(html))
+	assert.Equal(t, "Danny Banks (rel)", author(doc))
 }
