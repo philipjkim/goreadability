@@ -60,8 +60,4 @@ TODO
 License
 -------
 
-This code is under the Apache License 2.0. See <http://www.apache.org/licenses/LICENSE-2.0>.
-
-
-[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/philipjkim/goreadability/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
-
+[MIT](LICENSE)
