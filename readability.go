@@ -450,8 +450,8 @@ func transformMisusedDivsIntoP(doc *goquery.Document, opt *Option) error {
 				return false
 			}
 			if goquery.NodeName(s) == "div" {
-				innerHtml, _ := s.Html()
-				if patterns.DivToPElements.FindString(innerHtml) == "" {
+				innerHTML, _ := s.Html()
+				if patterns.DivToPElements.FindString(innerHTML) == "" {
 					s.Get(0).Data = "p"
 				}
 			}
@@ -665,7 +665,7 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 		if !isSupportedImage(src, opt) {
 			return true
 		}
-		loopCnt += 1
+		loopCnt++
 		w, _ := strconv.Atoi(s.AttrOr("width", "0"))
 		h, _ := strconv.Atoi(s.AttrOr("height", "0"))
 		go func() { ch <- checkImageSize(src, w, h, opt) }()
@@ -688,7 +688,6 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 			return imgs
 		}
 	}
-	return imgs
 }
 
 func isSupportedImage(src string, opt *Option) bool {
