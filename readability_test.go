@@ -31,6 +31,19 @@ func TestExtract(t *testing.T) {
 	assert.NotEmpty(t, c.Images)
 }
 
+func TestExtractForImages(t *testing.T) {
+	u := "http://www.orangesmile.com/travelguide/palermo/photo-gallery.htm"
+	opt := NewOption()
+	opt.IgnoreImageFormat = []string{"data:image/", ".svg", ".webp", ".gif"}
+	opt.ImageRequestTimeout = 2000
+	opt.CheckImageLoopCount = 20
+	opt.MaxImageCount = 3
+	opt.MinImageWidth = 300
+	opt.MinImageHeight = 300
+	c, _ := Extract(u, opt)
+	assert.Equal(t, opt.MaxImageCount, len(c.Images))
+}
+
 func TestPattern(t *testing.T) {
 	p := newPattern()
 	assert.Empty(t, p.Video.FindString("http://WWW.ITUBE.COM"))

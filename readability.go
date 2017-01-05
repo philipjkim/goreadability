@@ -66,9 +66,13 @@ type Option struct {
 	// MaxImageCount is the maximum number of images for a web page.
 	MaxImageCount int
 
-	// CheckImageLoopCount is the number of images for parallel requests to fetch the image size.
+	// CheckImageLoopCount is the number of images
+	// for parallel requests to fetch the image size.
 	// For example, if this value is set to 10,
-	// the first 10 image sources in img tag will be requested.
+	// the first 10 img src URLs without width/height attributes
+	// will be requested over network.
+	// (img tags with both width/height attributes (pixels in int) are not conunted,
+	// since they are not requested over network to get image size.)
 	CheckImageLoopCount uint
 
 	// ImageRequestTimeout is timeout(ms) for a single image request.
@@ -665,10 +669,10 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 		if !isSupportedImage(src, opt) {
 			return true
 		}
-		loopCnt++
+
 		w, _ := strconv.Atoi(s.AttrOr("width", "0"))
 		h, _ := strconv.Atoi(s.AttrOr("height", "0"))
-		go func() { ch <- checkImageSize(src, w, h, opt) }()
+		go func(lc *uint) { ch <- checkImageSize(src, w, h, opt, lc) }(&loopCnt)
 		return true
 	})
 
@@ -699,9 +703,10 @@ func isSupportedImage(src string, opt *Option) bool {
 	return true
 }
 
-func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option) *Image {
+func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option, loopCnt *uint) *Image {
 	width, height := widthFromAttr, heightFromAttr
 	if width == 0 || height == 0 {
+		*loopCnt++
 		_, size, err := fastimage.DetectImageTypeWithTimeout(src, opt.ImageRequestTimeout)
 		if err != nil {
 			return &Image{}
