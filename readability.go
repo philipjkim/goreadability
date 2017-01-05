@@ -3,21 +3,21 @@
 package readability
 
 import (
+	"errors"
 	"fmt"
 	"math"
+	"net/url"
+	"os"
 	"regexp"
 	"sort"
-	"strings"
-
-	"errors"
-	"net/url"
 	"strconv"
-
+	"strings"
 	"time"
+
+	"golang.org/x/net/html"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/philipjkim/fastimage"
-	"golang.org/x/net/html"
 )
 
 // Image contains URL and Size (width and height in pixel).
@@ -672,6 +672,9 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 
 		w, _ := strconv.Atoi(s.AttrOr("width", "0"))
 		h, _ := strconv.Atoi(s.AttrOr("height", "0"))
+		if isVerbose() {
+			fmt.Printf("loopCnt: %v, src: %v, w: %v, h: %v\n", loopCnt, src, w, h)
+		}
 		go func(lc *uint) { ch <- checkImageSize(src, w, h, opt, lc) }(&loopCnt)
 		return true
 	})
@@ -708,6 +711,10 @@ func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option, 
 	if width == 0 || height == 0 {
 		*loopCnt++
 		_, size, err := fastimage.DetectImageTypeWithTimeout(src, opt.ImageRequestTimeout)
+		if isVerbose() {
+			fmt.Printf("[req] loopCnt: %v, src: %v, err: %v, size: %v\n",
+				*loopCnt, src, err, size)
+		}
 		if err != nil {
 			return &Image{}
 		}
@@ -791,6 +798,9 @@ func absPath(in string, reqURLStr string) (out string, err error) {
 		return "", fmt.Errorf("url %v has invalid scheme", reqURLStr)
 	}
 
+	if strings.HasPrefix(in, "//") {
+		return reqURL.Scheme + ":" + in, nil
+	}
 	if strings.HasPrefix(in, "/") {
 		return reqURL.Scheme + "://" + reqURL.Host + in, nil
 	}
@@ -815,4 +825,15 @@ func isValidURLStr(s string) bool {
 		return false
 	}
 	return u.Scheme == "http" || u.Scheme == "https"
+}
+
+func isVerbose() bool {
+	return getOrDefault("VERBOSE_LOG", "false") == "true"
+}
+
+func getOrDefault(name, defaultValue string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return defaultValue
 }

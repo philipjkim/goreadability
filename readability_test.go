@@ -113,6 +113,14 @@ func TestAbsPath(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func TestAbsPathWithoutScheme(t *testing.T) {
+	url := "https://brunch.co.kr/@julieted17/19"
+	in := "//t1.daumcdn.net/brunch/static/icon/favicon/favicon64_150520.ico"
+	out, err := absPath(in, url)
+	assert.Nil(t, err)
+	assert.Equal(t, "https:"+in, out)
+}
+
 func TestDescriptionTimeout(t *testing.T) {
 	url := "https://tools.ietf.org/rfc/"
 	opt := NewOption()
