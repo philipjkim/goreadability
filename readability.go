@@ -675,7 +675,17 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 		if isVerbose() {
 			fmt.Printf("loopCnt: %v, src: %v, w: %v, h: %v\n", loopCnt, src, w, h)
 		}
-		go func(lc *uint) { ch <- checkImageSize(src, w, h, opt, lc) }(&loopCnt)
+
+		go func(lc *uint) {
+			defer func() {
+				if err := recover(); err != nil {
+					fmt.Printf("checkImageSize failed for %v: %v\n", src, err)
+				}
+			}()
+
+			ch <- checkImageSize(src, w, h, opt, lc)
+		}(&loopCnt)
+
 		return true
 	})
 
