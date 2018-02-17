@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var urlWithAbsoluteImgPaths = "http://m.twins.mlb.com/news/article/172850240/twins-impressed-by-byung-ho-parks-home-run"
+var urlWithAbsoluteImgPaths = "http://www.espn.com/nba/insider/story/_/id/22450965/drafting-nba-rising-stars-future-star-potential-ben-simmons-lonzo-ball-joel-embiid-more"
 var urlWithRelativeImgPaths = "http://www.boogiejack.com/server_paths.html"
 
 func TestExtract(t *testing.T) {
@@ -20,7 +20,7 @@ func TestExtract(t *testing.T) {
 	assert.NotContains(t, c.Title, "\n")
 	assert.NotEmpty(t, c.Description)
 	assert.NotContains(t, c.Description, "\n")
-	assert.NotEmpty(t, c.Images)
+	assert.Empty(t, c.Images) // empty since images are lazily-loaded
 
 	c, err = Extract(urlWithRelativeImgPaths, opt)
 	assert.Nil(t, err)
@@ -124,7 +124,7 @@ func TestAbsPathWithoutScheme(t *testing.T) {
 func TestDescriptionTimeout(t *testing.T) {
 	url := "https://tools.ietf.org/rfc/"
 	opt := NewOption()
-	opt.DescriptionExtractionTimeout = 100
+	opt.DescriptionExtractionTimeout = 50
 	c, err := Extract(url, opt)
 	assert.Nil(t, err)
 	assert.NotNil(t, c)
@@ -133,9 +133,9 @@ func TestDescriptionTimeout(t *testing.T) {
 }
 
 func TestAuthor(t *testing.T) {
-	// <span class="author"><span class="faded">By</span> Rhett Bollinger</span>
+	// <span class='author'>Jonathan Givony and Mike Schmitz</span>
 	doc, _ := goquery.NewDocument(urlWithAbsoluteImgPaths)
-	assert.Equal(t, "By Rhett Bollinger", author(doc))
+	assert.Equal(t, "Jonathan Givony and Mike Schmitz", author(doc))
 
 	// <meta name="dc.creator" content="Finch" />
 	html := `<head><meta name="dc.creator" content="Finch" /></head>`
