@@ -682,13 +682,19 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 			defer func() {
 				if err := recover(); err != nil {
 					if isVerbose() {
-						fmt.Printf("[readability] checkImageSize failed for %v: %v\n",
-							src, err)
+						fmt.Printf("checkImageSize error: %v, src: %v\n", err, src)
 					}
 				}
 			}()
 
-			ch <- checkImageSize(src, w, h, opt, lc)
+			img := checkImageSize(src, w, h, opt, lc)
+			if isClosed(ch) {
+				if isVerbose() {
+					fmt.Printf("channel closed already, img discarded: %v\n", img)
+				}
+			} else {
+				ch <- img
+			}
 		}(&loopCnt)
 
 		return true
@@ -708,11 +714,21 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 			}
 		case <-timeout:
 			if isVerbose() {
-				fmt.Printf("[readability] checkImageSize timed out: reqURL: %s\n", reqURL)
+				fmt.Printf("checkImageSize timed out: reqURL: %s\n", reqURL)
 			}
 			return imgs
 		}
 	}
+}
+
+func isClosed(ch <-chan *Image) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+	}
+
+	return false
 }
 
 func isSupportedImage(src string, opt *Option) bool {
