@@ -655,7 +655,7 @@ func sortCandidates(candidates map[string]candidate) candidateList {
 }
 
 func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
-	ch := make(chan *Image, opt.CheckImageLoopCount+1)
+	ch := make(chan *Image, opt.CheckImageLoopCount*2)
 
 	imgs := []Image{}
 	loopCnt := uint(0)
