@@ -4,13 +4,13 @@ package fastimage
 
 import "fmt"
 
-const _ImageType_name = "GIFPNGJPEGBMPTIFFUnknown"
+const _ImageTypeName = "GIFPNGJPEGBMPTIFFUnknown"
 
-var _ImageType_index = [...]uint8{0, 3, 6, 10, 13, 17, 24}
+var _ImageTypeIndex = [...]uint8{0, 3, 6, 10, 13, 17, 24}
 
 func (i ImageType) String() string {
-	if i+1 >= ImageType(len(_ImageType_index)) {
+	if i+1 >= ImageType(len(_ImageTypeIndex)) {
 		return fmt.Sprintf("ImageType(%d)", i)
 	}
-	return _ImageType_name[_ImageType_index[i]:_ImageType_index[i+1]]
+	return _ImageTypeName[_ImageTypeIndex[i]:_ImageTypeIndex[i+1]]
 }

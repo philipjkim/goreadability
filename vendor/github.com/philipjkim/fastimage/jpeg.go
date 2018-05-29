@@ -80,7 +80,7 @@ func parseJPEGData(buffer []byte, offset int, segment jpegHeaderSegment) (*Image
 
 		return &ImageSize{Width: uint32(width), Height: uint32(height)}, nil
 	default:
-		return nil, errors.New("Can't detect jpeg segment.")
+		return nil, errors.New("can't detect jpeg segment")
 	}
 }
 
