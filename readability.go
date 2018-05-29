@@ -656,6 +656,8 @@ func sortCandidates(candidates map[string]candidate) candidateList {
 
 func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 	ch := make(chan *Image)
+	defer close(ch)
+
 	imgs := []Image{}
 	loopCnt := uint(0)
 	doc.Find("img").EachWithBreak(func(i int, s *goquery.Selection) bool {
@@ -703,7 +705,6 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 			}
 		case <-timeout:
 			fmt.Printf("[readability] checkImageSize timed out: reqURL: %s\n", reqURL)
-			close(ch)
 			return imgs
 		}
 	}
