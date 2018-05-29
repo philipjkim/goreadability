@@ -681,7 +681,10 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 		go func(lc *uint) {
 			defer func() {
 				if err := recover(); err != nil {
-					fmt.Printf("[readability] checkImageSize failed for %v: %v\n", src, err)
+					if isVerbose() {
+						fmt.Printf("[readability] checkImageSize failed for %v: %v\n",
+							src, err)
+					}
 				}
 			}()
 
@@ -704,7 +707,9 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 				return imgs
 			}
 		case <-timeout:
-			fmt.Printf("[readability] checkImageSize timed out: reqURL: %s\n", reqURL)
+			if isVerbose() {
+				fmt.Printf("[readability] checkImageSize timed out: reqURL: %s\n", reqURL)
+			}
 			return imgs
 		}
 	}
