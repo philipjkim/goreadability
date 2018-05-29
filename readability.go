@@ -674,24 +674,18 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 
 		w, _ := strconv.Atoi(s.AttrOr("width", "0"))
 		h, _ := strconv.Atoi(s.AttrOr("height", "0"))
-		if isVerbose() {
-			fmt.Printf("loopCnt: %v, src: %v, w: %v, h: %v\n", loopCnt, src, w, h)
-		}
+		logger.Printf("loopCnt: %v, src: %v, w: %v, h: %v\n", loopCnt, src, w, h)
 
 		go func(lc *uint) {
 			defer func() {
 				if err := recover(); err != nil {
-					if isVerbose() {
-						fmt.Printf("checkImageSize error: %v, src: %v\n", err, src)
-					}
+					logger.Printf("checkImageSize error: %v, src: %v\n", err, src)
 				}
 			}()
 
 			img := checkImageSize(src, w, h, opt, lc)
 			if isClosed(ch) {
-				if isVerbose() {
-					fmt.Printf("channel closed already, img discarded: %v\n", img)
-				}
+				logger.Printf("channel closed already, img discarded: %v\n", img)
 			} else {
 				ch <- img
 			}
@@ -713,9 +707,7 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 				return imgs
 			}
 		case <-timeout:
-			if isVerbose() {
-				fmt.Printf("checkImageSize timed out: reqURL: %s\n", reqURL)
-			}
+			logger.Printf("checkImageSize timed out: reqURL: %s\n", reqURL)
 			return imgs
 		}
 	}
@@ -745,10 +737,8 @@ func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option, 
 	if width == 0 || height == 0 {
 		*loopCnt++
 		_, size, err := fastimage.DetectImageTypeWithTimeout(src, opt.ImageRequestTimeout)
-		if isVerbose() {
-			fmt.Printf("[req] loopCnt: %v, src: %v, err: %v, size: %v\n",
-				*loopCnt, src, err, size)
-		}
+		logger.Printf("[req] loopCnt: %v, src: %v, err: %v, size: %v\n",
+			*loopCnt, src, err, size)
 		if err != nil {
 			return &Image{}
 		}
@@ -859,10 +849,6 @@ func isValidURLStr(s string) bool {
 		return false
 	}
 	return u.Scheme == "http" || u.Scheme == "https"
-}
-
-func isVerbose() bool {
-	return getOrDefault("VERBOSE_LOG", "false") == "true"
 }
 
 func getOrDefault(name, defaultValue string) string {

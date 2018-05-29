@@ -38,6 +38,17 @@ log.Println(content.Images)
 ```
 
 
+Testing
+-------
+
+```sh
+go test
+
+# or if you want to see verbose logs:
+DEBUG=true go test
+```
+
+
 Command Line Tool
 -----------------
 
