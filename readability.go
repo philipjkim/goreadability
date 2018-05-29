@@ -722,7 +722,7 @@ func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option, 
 	width, height := widthFromAttr, heightFromAttr
 	if width == 0 || height == 0 {
 		*loopCnt++
-		_, size, err := fastimage.DetectImageTypeWithTimeout(src, opt.ImageRequestTimeout)
+		_, size, err := fastimage.DetectImageTypeWithTimeout2(src, opt.ImageRequestTimeout)
 		if isVerbose() {
 			fmt.Printf("[req] loopCnt: %v, src: %v, err: %v, size: %v\n",
 				*loopCnt, src, err, size)

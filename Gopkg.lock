@@ -20,7 +20,7 @@
   branch = "master"
   name = "github.com/philipjkim/fastimage"
   packages = ["."]
-  revision = "13c3aa766804edf75ff11d5872d8225f21227cd3"
+  revision = "1487d807c433bccc22f5be7c4bbe32db49cd684e"
 
 [[projects]]
   name = "github.com/pmezard/go-difflib"
