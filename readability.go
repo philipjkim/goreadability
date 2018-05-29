@@ -655,8 +655,7 @@ func sortCandidates(candidates map[string]candidate) candidateList {
 }
 
 func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
-	ch := make(chan *Image)
-	defer close(ch)
+	ch := make(chan *Image, opt.CheckImageLoopCount+1)
 
 	imgs := []Image{}
 	loopCnt := uint(0)
@@ -683,12 +682,7 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 				}
 			}()
 
-			img := checkImageSize(src, w, h, opt, lc)
-			if isClosed(ch) {
-				logger.Printf("channel closed already, img discarded: %v\n", img)
-			} else {
-				ch <- img
-			}
+			ch <- checkImageSize(src, w, h, opt, lc)
 		}(&loopCnt)
 
 		return true
@@ -711,16 +705,6 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 			return imgs
 		}
 	}
-}
-
-func isClosed(ch <-chan *Image) bool {
-	select {
-	case <-ch:
-		return true
-	default:
-	}
-
-	return false
 }
 
 func isSupportedImage(src string, opt *Option) bool {
