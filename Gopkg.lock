@@ -17,9 +17,10 @@
   revision = "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
 
 [[projects]]
+  branch = "master"
   name = "github.com/philipjkim/fastimage"
   packages = ["."]
-  revision = "f67c6a4c532a3521ca1ae51a09d3f8a253357ad8"
+  revision = "1487d807c433bccc22f5be7c4bbe32db49cd684e"
 
 [[projects]]
   name = "github.com/pmezard/go-difflib"
@@ -43,6 +44,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "75c0f535484009966b7791d7998306b1c0b4f186a28e128e4c042a104eef894c"
+  inputs-digest = "6b254b7532d695f2d842e55792fae0080fec05e4427b2a8d52386e9edf9f5e98"
   solver-name = "gps-cdcl"
   solver-version = 1

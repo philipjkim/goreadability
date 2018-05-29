@@ -2,7 +2,7 @@ package fastimage
 
 import (
 	"bytes"
-	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -27,14 +27,13 @@ func DetectImageType(uri string) (ImageType, *ImageSize, error) {
 // If timeout < 1, default timeout 5000 is used.
 func DetectImageTypeWithTimeout(uri string, timeout uint) (ImageType, *ImageSize, error) {
 	logger.Printf("Opening HTTP stream")
-	t := time.Duration(timeout) * time.Millisecond
-	client := &http.Client{Timeout: t}
+	client := &http.Client{
+		Timeout: time.Duration(timeout) * time.Millisecond,
+	}
 	resp, err := client.Get(uri)
-
 	if err != nil {
 		return Unknown, nil, err
 	}
-
 	defer closeHTTPStream(resp)
 
 	return DetectImageTypeFromResponse(resp)
@@ -48,44 +47,92 @@ func DetectImageTypeWithTimeout(uri string, timeout uint) (ImageType, *ImageSize
 // Only check ImageType and ImageSize if error is not nil.
 func DetectImageTypeFromResponse(resp *http.Response) (ImageType, *ImageSize, error) {
 	logger.Printf("Response content-length: %v bytes", resp.ContentLength)
-
 	return DetectImageTypeFromReader(resp.Body)
-
 }
 
 // DetectImageTypeFromReader detects the type and size from a stream of bytes.
 //
 // Only check ImageType and ImageSize if error is not nil.
 func DetectImageTypeFromReader(r io.Reader) (ImageType, *ImageSize, error) {
-	type imageInfo struct {
-		itype ImageType
-		isize *ImageSize
-		err   error
-	}
+	buffer := bytes.Buffer{}
 
-	ch := make(chan imageInfo)
+	logger.Printf("Starting operation")
+	defer logger.Printf("Ended after reading %v bytes", buffer.Len())
 
-	quit := false
-	go func() {
-		buffer := bytes.Buffer{}
+	for {
+		err := readToBuffer(r, &buffer)
+		if err != nil {
+			logger.Printf("Bailing out because of err %v", err)
+			return Unknown, nil, err
+		}
 
-		logger.Printf("Starting operation")
-		defer logger.Printf("Ended after reading %v bytes", buffer.Len())
+		if buffer.Len() < 2 {
+			continue
+		}
+		if buffer.Len() > 20000 {
+			logger.Println("Type not found until buffer read exceeds 20000 bytes")
+			return Unknown, nil, err
+		}
 
-		for {
-			if quit {
-				logger.Println("Quit signal received in DetectImageTypeFromReader")
-				return
+		for _, ImageTypeParser := range imageTypeParsers {
+			if ImageTypeParser.Detect(buffer.Bytes()) {
+				t := ImageTypeParser.Type()
+				size, err := ImageTypeParser.GetSize(buffer.Bytes())
+
+				if err == nil {
+					logger.Printf("Found image type %v with size %v", t, size)
+					return t, size, nil
+				}
+				break
 			}
-			err := readToBuffer(r, &buffer)
+		}
+	}
+}
+
+// DetectImageTypeWithTimeout2 acts same as DetectImageTypeWithTimeout(),
+// except this function cancels detection logic
+// if elapsed time exceeds 500ms.
+//
+// If timeout < 1, default timeout 5000 is used.
+func DetectImageTypeWithTimeout2(uri string, timeout uint) (ImageType, *ImageSize, error) {
+	logger.Printf("Opening HTTP stream")
+	client := &http.Client{
+		Timeout: time.Duration(timeout) * time.Millisecond,
+	}
+	resp, err := client.Get(uri)
+	if err != nil {
+		return Unknown, nil, err
+	}
+	defer closeHTTPStream(resp)
+
+	logger.Printf("Response content-length: %v bytes", resp.ContentLength)
+	buffer := bytes.Buffer{}
+
+	logger.Printf("Starting operation")
+	defer logger.Printf("Ended after reading %v bytes", buffer.Len())
+
+	parseTimeout := time.After(500 * time.Millisecond)
+
+	for {
+		select {
+		case <-parseTimeout:
+			err := fmt.Errorf("Image type detection timeout: url: %s", uri)
+			fmt.Println("[fastimage] " + err.Error())
+			return Unknown, nil, err
+		default:
+			err := readToBuffer(resp.Body, &buffer)
+			if err != nil {
+				logger.Printf("Bailing out because of err %v", err)
+				return Unknown, nil, err
+			}
+
 			if buffer.Len() < 2 {
 				continue
 			}
-
-			if err != nil {
-				logger.Printf("Bailing out because of err %v", err)
-				ch <- imageInfo{Unknown, nil, err}
-				return
+			if buffer.Len() > 20000 {
+				err = fmt.Errorf("Type not found until buffer read exceeds 20000 bytes")
+				logger.Println(err.Error())
+				return Unknown, nil, err
 			}
 
 			for _, ImageTypeParser := range imageTypeParsers {
@@ -95,24 +142,12 @@ func DetectImageTypeFromReader(r io.Reader) (ImageType, *ImageSize, error) {
 
 					if err == nil {
 						logger.Printf("Found image type %v with size %v", t, size)
-						ch <- imageInfo{t, size, nil}
-						return
+						return t, size, nil
 					}
 					break
 				}
 			}
 		}
-	}()
-
-	timedOut := time.After(time.Duration(500) * time.Millisecond)
-	select {
-	case ii := <-ch:
-		quit = true
-		return ii.itype, ii.isize, ii.err
-	case <-timedOut:
-		logger.Println("Timeout in DetectImageTypeFromReader")
-		quit = true
-		return Unknown, nil, errors.New("Timeout in DetectImageTypeFromReader")
 	}
 }
 
