@@ -655,14 +655,16 @@ func sortCandidates(candidates map[string]candidate) candidateList {
 }
 
 func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
-	ch := make(chan *Image, opt.CheckImageLoopCount*10)
+	ch := make(chan *Image, opt.CheckImageLoopCount*2)
 
 	imgs := []Image{}
 	loopCnt := uint(0)
 	doc.Find("img").EachWithBreak(func(i int, s *goquery.Selection) bool {
-		if loopCnt >= opt.CheckImageLoopCount {
+		loopCnt++
+		if loopCnt > opt.CheckImageLoopCount {
 			return false
 		}
+
 		src, err := absPath(s.AttrOr("src", s.AttrOr("data-original", "")), reqURL)
 		if err != nil {
 			return true
@@ -675,15 +677,18 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 		h, _ := strconv.Atoi(s.AttrOr("height", "0"))
 		logger.Printf("loopCnt: %v, src: %v, w: %v, h: %v\n", loopCnt, src, w, h)
 
-		go func(lc *uint) {
+		go func(loopCnt uint) {
 			defer func() {
 				if err := recover(); err != nil {
-					logger.Printf("checkImageSize error: %v, src: %v\n", err, src)
+					logger.Printf("checkImageSize error: %v, src: %v", err, src)
 				}
+
+				logger.Printf("goroutine finished: loopCnt: %v, src: %v", loopCnt, src)
 			}()
 
-			ch <- checkImageSize(src, w, h, opt, lc)
-		}(&loopCnt)
+			logger.Printf("goroutine started: loopCnt: %v, src: %v", loopCnt, src)
+			ch <- checkImageSize(src, w, h, opt)
+		}(loopCnt)
 
 		return true
 	})
@@ -701,7 +706,7 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 				return imgs
 			}
 		case <-timeout:
-			logger.Printf("checkImageSize timed out: reqURL: %s\n", reqURL)
+			logger.Printf("checkImageSize timed out: reqURL: %s", reqURL)
 			return imgs
 		}
 	}
@@ -716,13 +721,11 @@ func isSupportedImage(src string, opt *Option) bool {
 	return true
 }
 
-func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option, loopCnt *uint) *Image {
+func checkImageSize(src string, widthFromAttr, heightFromAttr int, opt *Option) *Image {
 	width, height := widthFromAttr, heightFromAttr
 	if width == 0 || height == 0 {
-		*loopCnt++
 		_, size, err := fastimage.DetectImageTypeWithTimeout(src, opt.ImageRequestTimeout)
-		logger.Printf("[req] loopCnt: %v, src: %v, err: %v, size: %v\n",
-			*loopCnt, src, err, size)
+		logger.Printf("checkImageSize: src: %v, err: %v, size: %v\n", src, err, size)
 		if err != nil {
 			return &Image{}
 		}
