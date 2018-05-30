@@ -124,7 +124,7 @@ func TestAbsPathWithoutScheme(t *testing.T) {
 func TestDescriptionTimeout(t *testing.T) {
 	url := "https://tools.ietf.org/rfc/"
 	opt := NewOption()
-	opt.DescriptionExtractionTimeout = 50
+	opt.DescriptionExtractionTimeout = 10
 	c, err := Extract(url, opt)
 	assert.Nil(t, err)
 	assert.NotNil(t, c)

@@ -2,6 +2,8 @@ language: go
 go:
   - "1.10"
   - "tip"
+env:
+  - DEBUG=true
 install:
   - go get -t -v ./...
   - go get github.com/philipjkim/goreadability
