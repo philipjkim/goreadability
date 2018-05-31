@@ -4,7 +4,6 @@ package readability
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -246,10 +245,12 @@ func prepareCandidates(doc *goquery.Document, opt *Option) (*candidates, error) 
 
 	err := removeUnlikelyCandidates(doc, opt)
 	if err != nil {
+		logger.Printf("prepareCandidates failed: %s", err)
 		return nil, err
 	}
 	err = transformMisusedDivsIntoP(doc, opt)
 	if err != nil {
+		logger.Printf("prepareCandidates failed: %s", err)
 		return nil, err
 	}
 
@@ -258,7 +259,7 @@ func prepareCandidates(doc *goquery.Document, opt *Option) (*candidates, error) 
 
 func getArticle(candidates *candidates) (*goquery.Document, error) {
 	if candidates == nil || len(candidates.List) == 0 {
-		return nil, errors.New("Empty candidates")
+		return nil, fmt.Errorf("Empty candidates")
 	}
 	bestCandidate := candidates.List[0]
 	siblingScoreThreshold := math.Max(10.0, bestCandidate.Score*0.2)
@@ -404,14 +405,17 @@ func removeUnlikelyCandidates(doc *goquery.Document, opt *Option) error {
 		return nil
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	ch := make(chan error)
 	quit := false
 
 	go func() {
+		logger.Println("goroutine@removeUnlikelyCandidates started")
+		defer logger.Println("goroutine@removeUnlikelyCandidates finished")
+
 		sel := doc.Find("*")
-		if quit {
-			return
-		}
 		sel.EachWithBreak(func(i int, s *goquery.Selection) bool {
 			if quit {
 				return false
@@ -427,29 +431,40 @@ func removeUnlikelyCandidates(doc *goquery.Document, opt *Option) error {
 			}
 			return true
 		})
-		ch <- nil
-		return
+
+		select {
+		case ch <- nil:
+			logger.Println("goroutine@removeUnlikelyCandidates sent data to ch")
+		case <-ctx.Done():
+			logger.Println("goroutine@removeUnlikelyCandidates didn't send data to ch (context closed)")
+		}
 	}()
 
 	timeout := time.After(time.Duration(opt.DescriptionExtractionTimeout) * time.Millisecond)
 	select {
 	case err := <-ch:
+		logger.Println("receiver@removeUnlikelyCandidates got data from ch")
 		return err
 	case <-timeout:
 		quit = true
-		return errors.New("readability.removeUnlikelyCandidates timed out")
+		err := fmt.Errorf("removeUnlikelyCandidates timed out")
+		logger.Println(err)
+		return err
 	}
 }
 
 func transformMisusedDivsIntoP(doc *goquery.Document, opt *Option) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	ch := make(chan error)
 	quit := false
 
 	go func() {
+		logger.Println("goroutine@transformMisusedDivsIntoP started")
+		defer logger.Println("goroutine@transformMisusedDivsIntoP finished")
+
 		sel := doc.Find("*")
-		if quit {
-			return
-		}
 		sel.EachWithBreak(func(i int, s *goquery.Selection) bool {
 			if quit {
 				return false
@@ -462,25 +477,39 @@ func transformMisusedDivsIntoP(doc *goquery.Document, opt *Option) error {
 			}
 			return true
 		})
-		ch <- nil
-		return
+
+		select {
+		case ch <- nil:
+			logger.Println("goroutine@transformMisusedDivsIntoP sent data to ch")
+		case <-ctx.Done():
+			logger.Println("goroutine@transformMisusedDivsIntoP didn't send data to ch (context closed)")
+		}
 	}()
 
 	timeout := time.After(time.Duration(opt.DescriptionExtractionTimeout) * time.Millisecond)
 	select {
 	case err := <-ch:
+		logger.Println("receiver@transformMisusedDivsIntoP got data from ch")
 		return err
 	case <-timeout:
 		quit = true
-		return errors.New("readability.transformMisusedDivsIntoP timed out")
+		err := fmt.Errorf("transformMisusedDivsIntoP timed out")
+		logger.Println(err)
+		return err
 	}
 }
 
 func getCandidates(doc *goquery.Document, opt *Option) (*candidates, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	ch := make(chan *candidates)
 	quit := false
 
 	go func() {
+		logger.Println("goroutine@getCandidates started")
+		defer logger.Println("goroutine@getCandidates finished")
+
 		cMap := map[string]candidate{}
 		doc.Find("p, td").EachWithBreak(func(i int, s *goquery.Selection) bool {
 			if quit {
@@ -526,8 +555,13 @@ func getCandidates(doc *goquery.Document, opt *Option) (*candidates, error) {
 		for k, v := range cMap {
 			cMap[k] = candidate{Node: v.Node, Score: v.Score * (1 - linkDensity(v.Node.Selection))}
 		}
-		ch <- &candidates{Map: cMap, List: sortCandidates(cMap)}
-		return
+
+		select {
+		case ch <- &candidates{Map: cMap, List: sortCandidates(cMap)}:
+			logger.Println("goroutine@getCandidates sent data to ch")
+		case <-ctx.Done():
+			logger.Println("goroutine@getCandidates didn't send data to ch (context canceled)")
+		}
 	}()
 
 	timeout := time.After(time.Duration(opt.DescriptionExtractionTimeout) * time.Millisecond)
@@ -535,10 +569,13 @@ func getCandidates(doc *goquery.Document, opt *Option) (*candidates, error) {
 		select {
 		case result := <-ch:
 			quit = true
+			logger.Println("receiver@getCandidates got data from ch")
 			return result, nil
 		case <-timeout:
 			quit = true
-			return nil, errors.New("readability.getCandidates timed out")
+			err := fmt.Errorf("getCandidates timed out")
+			logger.Println(err)
+			return nil, err
 		}
 	}
 }
@@ -656,8 +693,7 @@ func sortCandidates(candidates map[string]candidate) candidateList {
 }
 
 func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	ch := make(chan *Image)
@@ -683,6 +719,7 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 		logger.Printf("loopCnt: %v, src: %v, w: %v, h: %v\n", loopCnt, src, w, h)
 
 		go func(loopCnt uint) {
+			logger.Printf("goroutine(%v) started: src: %v", loopCnt, src)
 			defer func() {
 				if err := recover(); err != nil {
 					logger.Printf("checkImageSize error: %v, src: %v", err, src)
@@ -691,7 +728,6 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 				logger.Printf("goroutine(%v) finished", loopCnt)
 			}()
 
-			logger.Printf("goroutine(%v) started: src: %v", loopCnt, src)
 			img := checkImageSize(src, w, h, opt)
 			select {
 			case ch <- img:
@@ -800,7 +836,7 @@ func author(doc *goquery.Document) string {
 
 func absPath(in string, reqURLStr string) (out string, err error) {
 	if strings.TrimSpace(in) == "" {
-		return "", errors.New("Empty input string for absPath")
+		return "", fmt.Errorf("empty input string for absPath")
 	}
 
 	inURL, err := url.Parse(in)
