@@ -3,6 +3,7 @@
 package readability
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -655,7 +656,11 @@ func sortCandidates(candidates map[string]candidate) candidateList {
 }
 
 func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
-	ch := make(chan *Image, opt.CheckImageLoopCount*2)
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ch := make(chan *Image)
 
 	imgs := []Image{}
 	loopCnt := uint(0)
@@ -683,11 +688,17 @@ func images(doc *goquery.Document, reqURL string, opt *Option) []Image {
 					logger.Printf("checkImageSize error: %v, src: %v", err, src)
 				}
 
-				logger.Printf("goroutine finished: loopCnt: %v, src: %v", loopCnt, src)
+				logger.Printf("goroutine(%v) finished", loopCnt)
 			}()
 
-			logger.Printf("goroutine started: loopCnt: %v, src: %v", loopCnt, src)
-			ch <- checkImageSize(src, w, h, opt)
+			logger.Printf("goroutine(%v) started: src: %v", loopCnt, src)
+			img := checkImageSize(src, w, h, opt)
+			select {
+			case ch <- img:
+				logger.Printf("goroutine(%v) sent data to ch", loopCnt)
+			case <-ctx.Done():
+				logger.Printf("goroutine(%v) didn't send data to ch (context canceled)", loopCnt)
+			}
 		}(loopCnt)
 
 		return true
