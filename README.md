@@ -1,21 +1,18 @@
-goreadability
-=============
+# goreadability
 
 [![GoDoc](https://godoc.org/github.com/philipjkim/goreadability?status.svg)](https://godoc.org/github.com/philipjkim/goreadability) [![Go Report Card](https://goreportcard.com/badge/github.com/philipjkim/goreadability)](https://goreportcard.com/report/github.com/philipjkim/goreadability) [![Build Status](https://travis-ci.org/philipjkim/goreadability.svg)](https://travis-ci.org/philipjkim/goreadability)
 
-goreadability is a tool for extracting the primary readable content of a
-webpage. It is a Go port of arc90's readability project, 
-based on [ruby-readability](https://github.com/cantino/ruby-readability). 
+goreadability is a tool for extracting the primary readable content of a webpage. It is a Go port of arc90's readability project, based on [ruby-readability](https://github.com/cantino/ruby-readability).
 
+From v2.0 goreadability uses opengraph tag values if exists. You can disable opengraph lookup and follow the traditional readability rules by setting `Option.LookupOpenGraphTags` to `false`.
 
-Install
--------
+## Install
 
-    go get github.com/philipjkim/goreadability
+```
+go get github.com/philipjkim/goreadability
+```
 
-
-Example
--------
+## Example
 
 ```go
 // URL to extract contents (title, description, images, ...)
@@ -37,38 +34,28 @@ log.Println(content.Description)
 log.Println(content.Images)
 ```
 
-
-Testing
--------
+## Testing
 
 ```sh
 go test
 
 # or if you want to see verbose logs:
-DEBUG=true go test
+DEBUG=true go test -v
 ```
 
-
-Command Line Tool
------------------
+## Command Line Tool
 
 TODO
 
+## Related Projects
 
-Related Projects
-----------------
+- [ruby-readability](https://github.com/cantino/ruby-readability) is the base of this project.
+- [fastimage](https://github.com/rubenfonseca/fastimage) finds the type and/or size of a remote image given its uri, by fetching as little as needed.
 
-* [ruby-readability](https://github.com/cantino/ruby-readability) is the base of this project.
-* [fastimage](https://github.com/rubenfonseca/fastimage) finds the type and/or size of a remote image given its uri, by fetching as little as needed.
-
-
-Potential Issues
-----------------
+## Potential Issues
 
 TODO
 
-
-License
--------
+## License
 
 [MIT](LICENSE)

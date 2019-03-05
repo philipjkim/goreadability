@@ -87,6 +87,9 @@ type Option struct {
 
 	// DescriptionExtractionTimeout is timeout(ms) for extracting description for a page.
 	DescriptionExtractionTimeout uint
+
+	// LookupOpenGraphTags is a flag whether to use opengraph tag value for title, descriptions and image if exists.
+	LookupOpenGraphTags bool
 }
 
 // NewOption returns the default option.
@@ -106,6 +109,7 @@ func NewOption() *Option {
 		IgnoreImageFormat:            []string{"data:image/", ".svg", ".webp"},
 		DescriptionAsPlainText:       true,
 		DescriptionExtractionTimeout: 500,
+		LookupOpenGraphTags:          true,
 	}
 }
 
@@ -125,6 +129,7 @@ func copyOption(o *Option) *Option {
 		IgnoreImageFormat:            o.IgnoreImageFormat,
 		DescriptionAsPlainText:       o.DescriptionAsPlainText,
 		DescriptionExtractionTimeout: o.DescriptionExtractionTimeout,
+		LookupOpenGraphTags:          o.LookupOpenGraphTags,
 	}
 }
 
@@ -197,6 +202,22 @@ func Extract(reqURL string, opt *Option) (*Content, error) {
 // If you already have *goquery.Document after requesting HTTP, use this function,
 // otherwise use Extract(reqURL, opt).
 func ExtractFromDocument(doc *goquery.Document, reqURL string, opt *Option) (*Content, error) {
+	if opt.LookupOpenGraphTags {
+		og, err := getContentFromOpenGraph(doc, reqURL)
+		if err == nil && !og.IsEmpty() {
+			return &Content{
+				Title:       og.Title,
+				Description: og.Description,
+				Images: []Image{
+					Image{
+						URL:  og.ImageURL,
+						Size: &fastimage.ImageSize{Width: 0, Height: 0},
+					},
+				},
+			}, nil
+		}
+	}
+
 	title := strings.TrimSpace(doc.Find("title").First().Text())
 	return &Content{
 		Title:       title,

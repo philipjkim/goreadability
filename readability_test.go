@@ -11,18 +11,33 @@ import (
 var urlWithAbsoluteImgPaths = "http://www.espn.com/nba/insider/story/_/id/22450965/drafting-nba-rising-stars-future-star-potential-ben-simmons-lonzo-ball-joel-embiid-more"
 var urlWithRelativeImgPaths = "http://www.boogiejack.com/server_paths.html"
 
-func TestExtract(t *testing.T) {
+func TestExtractWhenImgPathsAreAbsolute(t *testing.T) {
 	opt := NewOption()
 	opt.ImageRequestTimeout = 500
+
+	// not using opengraph (traditional readability rule)
+	opt.LookupOpenGraphTags = false
 	c, err := Extract(urlWithAbsoluteImgPaths, opt)
 	assert.Nil(t, err)
-	assert.NotEmpty(t, c.Title)
-	assert.NotContains(t, c.Title, "\n")
-	assert.NotEmpty(t, c.Description)
+	assert.Equal(t, "Drafting NBA rising stars by future star potential - Ben Simmons, Lonzo Ball, Joel Embiid and more", c.Title)
+	assert.Equal(t, " ABOUT COOKIES To help make this website better, to improve and personalize your experience and for advertising purposes, are you happy to accept cookies and other technologies? Yes More Info Here Cookie Choices ", c.Description)
 	assert.NotContains(t, c.Description, "\n")
 	assert.Empty(t, c.Images) // empty since images are lazily-loaded
 
-	c, err = Extract(urlWithRelativeImgPaths, opt)
+	// using opengraph
+	opt.LookupOpenGraphTags = true
+	c, err = Extract(urlWithAbsoluteImgPaths, opt)
+	assert.Nil(t, err)
+	assert.Equal(t, "Drafting Embiid, Ball and NBA Rising Stars by future potential", c.Title)
+	assert.Equal(t, "We draft the best NBA rookies and sophomores to build two teams for five years from now. Who you got?", c.Description)
+	assert.NotEmpty(t, c.Images)
+	assert.Equal(t, 1, len(c.Images))
+}
+
+func TestExtractWhenImgPathsAreRelative(t *testing.T) {
+	opt := NewOption()
+	opt.ImageRequestTimeout = 500
+	c, err := Extract(urlWithRelativeImgPaths, opt)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, c.Title)
 	assert.NotContains(t, c.Title, "\n")
@@ -151,4 +166,14 @@ func TestAuthor(t *testing.T) {
 	html = `<a rel="author" href="http://dbanksdesign.com">Danny Banks (rel)</a>`
 	doc, _ = goquery.NewDocumentFromReader(strings.NewReader(html))
 	assert.Equal(t, "Danny Banks (rel)", author(doc))
+}
+
+func TestForOpengraph(t *testing.T) {
+	url := "https://roadsandkingdoms.com/2019/rk-insider-going-dublin/"
+	opt := NewOption()
+	c, err := Extract(url, opt)
+	assert.Nil(t, err)
+	assert.NotNil(t, c)
+	assert.Equal(t, "R&K Insider: Going to Dublin", c.Title)
+	assert.Equal(t, "This week on R&K: What to know before you go to Dublin, a ridiculously calorific breakfast in Norway, and how to hunt for food in Tokyo.", c.Description)
 }
