@@ -1,6 +1,6 @@
 # goreadability
 
-[![GoDoc](https://godoc.org/github.com/philipjkim/goreadability?status.svg)](https://godoc.org/github.com/philipjkim/goreadability) [![Go Report Card](https://goreportcard.com/badge/github.com/philipjkim/goreadability)](https://goreportcard.com/report/github.com/philipjkim/goreadability) [![Build Status](https://travis-ci.org/philipjkim/goreadability.svg)](https://travis-ci.org/philipjkim/goreadability)
+[![GoDoc](https://godoc.org/github.com/philipjkim/goreadability?status.svg)](https://godoc.org/github.com/philipjkim/goreadability) [![Go Report Card](https://goreportcard.com/badge/github.com/philipjkim/goreadability)](https://goreportcard.com/report/github.com/philipjkim/goreadability) [![Code Coverage](http://gocover.io/_badge/github.com/philipjkim/goreadability)](https://gocover.io/github.com/philipjkim/goreadability) [![Build Status](https://travis-ci.org/philipjkim/goreadability.svg)](https://travis-ci.org/philipjkim/goreadability)
 
 goreadability is a tool for extracting the primary readable content of a webpage. It is a Go port of arc90's readability project, based on [ruby-readability](https://github.com/cantino/ruby-readability).
 
